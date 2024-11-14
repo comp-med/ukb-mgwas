@@ -1,0 +1,158 @@
+---
+title: "NMR-CVD Single SNP MR"
+date: today
+highlight: pygments
+format:
+  html:
+    theme: zephyr
+    mainfont: Open Sans
+    monofont: DroidSansM Nerd Font Mono
+    fontsize: 1.3em
+    df-print: kable
+    fig-width: 8
+    fig-height: 6
+    code-fold: true
+    code-tools: true
+    code-overflow: wrap
+    code-summary: "Show the code"
+    standalone: true
+    embed-resources: true
+output:
+  html_document:
+  code_download: true
+toc: true  
+toc-depth: 3
+number-sections: true
+toc-float:
+  smooth-scroll: true
+execute:
+  include: true
+  eval: true
+  echo: true
+  warning: false
+editor: source
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| echo: true
+#| include: false
+
+#+ load.packages, include=F
+for (i in c(
+  "data.table",
+  "magrittr",
+  "here",
+  "ggplot2",
+  "ggthemes",
+  "glue",
+  "parallel",
+  "MendelianRandomization"
+  )
+  ) {
+  suppressPackageStartupMessages(
+    library(i, character.only = TRUE
+    ))
+}
+
+# Option setup for
+options(prType = 'html')
+options(knitr.table.format = "html")
+options(grType = 'base')
+```
+
+# Introduction
+
+*Goal:* Calculate effect of NMR traits on CVD outcomes using only co-localizing 
+SNPs in an MR framework.
+
+Only calculate effects for robust SuSiE colocalizations.
+
+# Load Data 
+
+```{r}
+# This is a temporary freeze of the results. Some files are missing
+result_location <- here("<PATH/TO/COLOC/OUTPUT/>/tables/")
+result_files <- dir(result_location, full.names = TRUE)
+length(result_files)
+stopifnot(length(result_files) > 0)
+coloc_results <- lapply(result_files, fread)
+coloc_results <- rbindlist(coloc_results, fill = TRUE)
+```
+
+# Filter Results
+
+Take only results from SuSiE
+
+Only do MR if exposure SNP == outcome SNP. 
+
+```{r}
+coloc_results <- coloc_results[type == "susie"]
+coloc_results <- coloc_results[pval_outcome < 1e-5, ]
+coloc_results <- coloc_results[pp_h4_abf > 0.8]
+coloc_results <- coloc_results[ld_top > 0.8]
+coloc_results <- coloc_results[id_exposure == id_outcome, ]
+
+# filter for exposure-association
+# coloc_results <- coloc_results[pval_exposure < 2*10^-10, ]
+```
+
+# Analysis
+
+Add single point MR estimates wherever possible.
+
+```{r}
+mr_results_single <- parallel::mclapply(
+  seq_len(
+    coloc_results[, .N]
+  ), 
+  function(i) {
+    mr_input <- mr_input(
+      bx = coloc_results$beta_exposure[i],
+      bxse = coloc_results$se_exposure[i],
+      by = coloc_results$beta_outcome[i],
+      byse = coloc_results$se_outcome[i]
+    )
+    mr_res <- mr_ivw(mr_input)
+    return(
+      data.table(
+        beta_mr_single = mr_res@Estimate,
+        se_mr_single = mr_res@StdError,
+        p_mr_single = mr_res@Pvalue
+      )
+    )
+}, mc.cores = 10)
+mr_results_single <- rbindlist(mr_results_single, fill = T)
+```
+
+```{r}
+coloc_results[, names(mr_results_single) := mr_results_single]
+mr_results_single <- coloc_results[
+  ,.(exposure, outcome, id_exposure, id_outcome, 
+     beta_mr_single, se_mr_single, p_mr_single)
+]
+mr_results_single[, p_adj_mr_single := p.adjust(p_mr_single, method = "BH")]
+mr_results_single[, mr_single_qc_fdr_sig := p_adj_mr_single < 0.05]
+```
+
+# Save
+
+```{r}
+result_save_path <- here("output/04_nmr_cvd_single_snp_mr/")
+dir.create(result_save_path, showWarnings = FALSE)
+```
+
+```{r}
+fwrite(
+  mr_results_single,
+  glue("{result_save_path}/nmr_cvd_susie_coloc_single_snp_mr_results.tsv.gz")
+  )
+```
+
+# Session Info
+
+```{r}
+sessioninfo::session_info()
+```
+
