@@ -9,7 +9,10 @@ effects).
 
 ## Colocalization Analysis
 
-The co-localization analysis was conducted using a `nextflow` pipeline that can be found at [`https://github.com/comp-med/nf-nmr-coloc`](https://github.com/comp-med/nf-nmr-coloc).
+The co-localization analysis was conducted using a `nextflow` pipeline that can
+be found at
+[`https://github.com/comp-med/nf-nmr-coloc`](https://github.com/comp-med/nf-nmr-coloc).
+It is added as a submodule under `02_nmr_ascvd_colocalization/`.
 
 ## Mendelian Randomization Analysis
 

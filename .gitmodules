@@ -1,0 +1,3 @@
+[submodule "07_ASCVD/02_nmr_ascvd_colocalization"]
+	path = 07_ASCVD/02_nmr_ascvd_colocalization
+	url = https://github.com/comp-med/nf-nmr-coloc
